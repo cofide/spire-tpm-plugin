@@ -64,15 +64,28 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	p.m.Lock()
 	defer p.m.Unlock()
 
-	if config.TPMPath == "" {
-		// Default TPM device location if not provided
-		config.TPMPath = "/dev/tpmrm0"
-	}
-
 	config.trustDomain = req.CoreConfiguration.TrustDomain
 	p.config = config
 
 	return &configv1.ConfigureResponse{}, nil
+}
+
+func (p *Plugin) getOpenConfig() (*attest.OpenConfig, error) {
+	if p.config.TPMPath == "" {
+		return &attest.OpenConfig{
+			TPMVersion: attest.TPMVersion20,
+		}, nil
+	}
+
+	tpmSocket, err := common.OpenTPMSocket(p.config.TPMPath)
+	if err != nil {
+		return nil, fmt.Errorf("could not open %s: %w", p.config.TPMPath, err)
+	}
+
+	return &attest.OpenConfig{
+		TPMVersion:     attest.TPMVersion20,
+		CommandChannel: tpmSocket,
+	}, nil
 }
 
 func New() *Plugin {
@@ -140,17 +153,14 @@ func (p *Plugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAttestatio
 
 func (p *Plugin) calculateResponse(ec *attest.EncryptedCredential, aikBytes []byte) (*common.ChallengeResponse, error) {
 	tpm := p.tpm
-	tpmSocket, err := common.OpenTPMSocket(p.config.TPMPath)
-	if err != nil {
-		return nil, fmt.Errorf("could not open %s: %w", p.config.TPMPath, err)
-	}
 
 	if tpm == nil {
 		var err error
-		tpm, err = attest.OpenTPM(&attest.OpenConfig{
-			TPMVersion:     attest.TPMVersion20,
-			CommandChannel: tpmSocket,
-		})
+		oc, err := p.getOpenConfig()
+		if err != nil {
+			return nil, err
+		}
+		tpm, err = attest.OpenTPM(oc)
 		if err != nil {
 			return nil, fmt.Errorf("failed to connect to tpm: %v", err)
 		}
@@ -174,17 +184,14 @@ func (p *Plugin) calculateResponse(ec *attest.EncryptedCredential, aikBytes []by
 
 func (p *Plugin) generateAttestationData() (*common.AttestationData, []byte, error) {
 	tpm := p.tpm
-	tpmSocket, err := common.OpenTPMSocket(p.config.TPMPath)
-	if err != nil {
-		return nil, nil, fmt.Errorf("could not open %s: %w", p.config.TPMPath, err)
-	}
 
 	if tpm == nil {
 		var err error
-		tpm, err = attest.OpenTPM(&attest.OpenConfig{
-			TPMVersion:     attest.TPMVersion20,
-			CommandChannel: tpmSocket,
-		})
+		oc, err := p.getOpenConfig()
+		if err != nil {
+			return nil, nil, err
+		}
+		tpm, err = attest.OpenTPM(oc)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to connect to tpm: %v", err)
 		}
