@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
 	"sync"
 
 	"github.com/google/go-attestation/attest"
@@ -46,6 +45,7 @@ type Plugin struct {
 
 type Config struct {
 	trustDomain string
+	TPMPath     string `hcl:"tpm_path"`
 }
 
 func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
@@ -63,6 +63,11 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 
 	p.m.Lock()
 	defer p.m.Unlock()
+
+	if config.TPMPath == "" {
+		// Default TPM device location if not provided
+		config.TPMPath = "/dev/tpmrm0"
+	}
 
 	config.trustDomain = req.CoreConfiguration.TrustDomain
 	p.config = config
@@ -135,11 +140,11 @@ func (p *Plugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAttestatio
 
 func (p *Plugin) calculateResponse(ec *attest.EncryptedCredential, aikBytes []byte) (*common.ChallengeResponse, error) {
 	tpm := p.tpm
-
-	tpmSocket, err := OpenTPMSocket("/run/swtpm/tpm.sock")
+	tpmSocket, err := common.OpenTPMSocket(p.config.TPMPath)
 	if err != nil {
-		return nil, fmt.Errorf("could not open /run/swtpm: %w", err)
+		return nil, fmt.Errorf("could not open %s: %w", p.config.TPMPath, err)
 	}
+
 	if tpm == nil {
 		var err error
 		tpm, err = attest.OpenTPM(&attest.OpenConfig{
@@ -167,40 +172,11 @@ func (p *Plugin) calculateResponse(ec *attest.EncryptedCredential, aikBytes []by
 	}, nil
 }
 
-type SocketChannel struct {
-	net.Conn
-}
-
-func (sc *SocketChannel) Read(p []byte) (n int, err error) {
-	return sc.Conn.Read(p)
-}
-
-func (sc *SocketChannel) Write(p []byte) (n int, err error) {
-	return sc.Conn.Write(p)
-}
-
-func (sc *SocketChannel) Close() error {
-	return sc.Conn.Close()
-}
-
-func (sc *SocketChannel) MeasurementLog() ([]byte, error) {
-	return nil, nil // Return actual log and error
-}
-
-func OpenTPMSocket(socketPath string) (attest.CommandChannelTPM20, error) {
-	conn, err := net.Dial("unix", socketPath)
-	if err != nil {
-		return nil, err
-	}
-	return &SocketChannel{Conn: conn}, nil
-}
-
 func (p *Plugin) generateAttestationData() (*common.AttestationData, []byte, error) {
 	tpm := p.tpm
-
-	tpmSocket, err := OpenTPMSocket("/run/swtpm/tpm.sock")
+	tpmSocket, err := common.OpenTPMSocket(p.config.TPMPath)
 	if err != nil {
-		return nil, nil, fmt.Errorf("could not open /run/swtpm: %w", err)
+		return nil, nil, fmt.Errorf("could not open %s: %w", p.config.TPMPath, err)
 	}
 
 	if tpm == nil {
