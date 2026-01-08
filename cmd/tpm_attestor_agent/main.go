@@ -17,7 +17,7 @@
 package main
 
 import (
-	"github.com/bloomberg/spire-tpm-plugin/pkg/agent"
+	"github.com/cofide/spire-tpm-plugin/pkg/agent"
 	"github.com/spiffe/spire-plugin-sdk/pluginmain"
 	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/nodeattestor/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"

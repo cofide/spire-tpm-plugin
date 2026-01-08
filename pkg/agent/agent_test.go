@@ -10,8 +10,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/bloomberg/spire-tpm-plugin/pkg/common_test"
-	"github.com/bloomberg/spire-tpm-plugin/pkg/server"
+	"github.com/cofide/spire-tpm-plugin/pkg/common_test"
+	"github.com/cofide/spire-tpm-plugin/pkg/server"
 	"github.com/google/go-attestation/attest"
 	"github.com/google/go-tpm-tools/client"
 	sim "github.com/google/go-tpm-tools/simulator"

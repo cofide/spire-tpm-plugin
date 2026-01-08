@@ -22,7 +22,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/bloomberg/spire-tpm-plugin/pkg/common"
+	"github.com/cofide/spire-tpm-plugin/pkg/common"
 	"github.com/google/go-attestation/attest"
 )
 

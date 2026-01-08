@@ -1,4 +1,4 @@
-module github.com/bloomberg/spire-tpm-plugin
+module github.com/cofide/spire-tpm-plugin
 
 go 1.23.0
 
