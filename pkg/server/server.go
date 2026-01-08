@@ -27,7 +27,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/bloomberg/spire-tpm-plugin/pkg/common"
+	"github.com/cofide/spire-tpm-plugin/pkg/common"
 	"github.com/google/go-attestation/attest"
 	"github.com/hashicorp/hcl"
 	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/nodeattestor/v1"
