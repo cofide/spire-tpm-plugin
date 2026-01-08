@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 
-	"github.com/bloomberg/spire-tpm-plugin/pkg/common_test"
+	"github.com/cofide/spire-tpm-plugin/pkg/common_test"
 	"github.com/stretchr/testify/require"
 
 	"github.com/google/go-attestation/attest"

@@ -31,7 +31,7 @@ import (
 
 	"github.com/hashicorp/hcl"
 
-	"github.com/bloomberg/spire-tpm-plugin/pkg/common"
+	"github.com/cofide/spire-tpm-plugin/pkg/common"
 )
 
 // Plugin implements the nodeattestor Plugin interface
