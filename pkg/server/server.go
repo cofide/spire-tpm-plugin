@@ -162,7 +162,7 @@ func (s *FileNodeStore) Verify(ctx context.Context, ek *attest.EK) error {
 }
 
 func New() *Plugin {
-	return &Plugin{}
+	return &Plugin{ns: &FileNodeStore{}}
 }
 
 func NewFromConfig(config *Config) *Plugin {
