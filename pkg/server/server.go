@@ -95,7 +95,7 @@ type Plugin struct {
 
 type NodeStore interface {
 	Verify(ctx context.Context, ek *attest.EK) error
-	Configure(*Config)
+	Configure(*configv1.CoreConfiguration, string) (*Config, error)
 	Validate(*configv1.CoreConfiguration, string) error
 }
 
@@ -163,13 +163,19 @@ func (s *FileNodeStore) Verify(ctx context.Context, ek *attest.EK) error {
 	return nil
 }
 
-func (s *FileNodeStore) Configure(cfg *Config) {
-	s.caPath = cfg.CaPath
-	s.hashPath = cfg.HashPath
+func (s *FileNodeStore) Configure(cfg *configv1.CoreConfiguration, hclCfg string) (*Config, error) {
+	config, err := buildConfig(cfg, hclCfg)
+	if err != nil {
+		return nil, err
+	}
+	s.caPath = config.CaPath
+	s.hashPath = config.HashPath
+
+	return config, nil
 }
 
-func (s *FileNodeStore) Validate(config *configv1.CoreConfiguration, hclCfg string) error {
-	_, err := buildConfig(config, hclCfg)
+func (s *FileNodeStore) Validate(cfg *configv1.CoreConfiguration, hclCfg string) error {
+	_, err := buildConfig(cfg, hclCfg)
 	return err
 }
 
@@ -188,13 +194,11 @@ func NewFromConfig(config *Config) *Plugin {
 }
 
 func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
-	config, err := buildConfig(req.GetCoreConfiguration(), req.GetHclConfiguration())
+	cfg, err := p.ns.Configure(req.GetCoreConfiguration(), req.GetHclConfiguration())
 	if err != nil {
 		return nil, err
 	}
-
-	p.config = config
-	p.ns.Configure(config)
+	p.config = cfg
 
 	return &configv1.ConfigureResponse{}, nil
 }
