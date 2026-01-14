@@ -96,6 +96,7 @@ type Plugin struct {
 type NodeStore interface {
 	Verify(ctx context.Context, ek *attest.EK) error
 	Configure(*Config)
+	Validate(*configv1.CoreConfiguration, string) error
 }
 
 type FileNodeStore struct {
@@ -167,6 +168,11 @@ func (s *FileNodeStore) Configure(cfg *Config) {
 	s.hashPath = cfg.HashPath
 }
 
+func (s *FileNodeStore) Validate(config *configv1.CoreConfiguration, hclCfg string) error {
+	_, err := buildConfig(config, hclCfg)
+	return err
+}
+
 func New(ns NodeStore) *Plugin {
 	return &Plugin{ns: ns}
 }
@@ -194,7 +200,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 }
 
 func (p *Plugin) Validate(_ context.Context, req *configv1.ValidateRequest) (*configv1.ValidateResponse, error) {
-	_, err := buildConfig(req.GetCoreConfiguration(), req.GetHclConfiguration())
+	err := p.ns.Validate(req.GetCoreConfiguration(), req.GetHclConfiguration())
 
 	var notes []string
 	if err != nil {
