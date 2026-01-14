@@ -90,29 +90,121 @@ type Plugin struct {
 	configv1.UnsafeConfigServer
 	config *Config
 	m      sync.Mutex
+	ns     NodeStore
 }
 
-func New() *Plugin {
-	return &Plugin{}
+type NodeStore interface {
+	Verify(ctx context.Context, ek *attest.EK) error
+	Configure(*configv1.CoreConfiguration, string) (*Config, error)
+	Validate(*configv1.CoreConfiguration, string) error
 }
 
-func NewFromConfig(config *Config) *Plugin {
-	return &Plugin{config: config}
+type FileNodeStore struct {
+	caPath   string
+	hashPath string
 }
 
-func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
-	config, err := buildConfig(req.GetCoreConfiguration(), req.GetHclConfiguration())
+func (s *FileNodeStore) Verify(ctx context.Context, ek *attest.EK) error {
+	hashEncoded, err := common.GetPubHash(ek)
+	if err != nil {
+		return status.Errorf(codes.InvalidArgument, "tpm: could not get public key hash: %v", err)
+	}
+
+	validEK := false
+
+	if s.hashPath != "" {
+		filename := filepath.Join(s.hashPath, hashEncoded)
+		if _, err := os.Stat(filename); !os.IsNotExist(err) {
+			validEK = true
+		}
+	}
+
+	if !validEK && s.caPath != "" && ek.Certificate != nil {
+		files, err := os.ReadDir(s.caPath)
+		if err != nil {
+			return status.Errorf(codes.InvalidArgument, "tpm: could not open ca directory: %v", err)
+		}
+
+		roots := x509.NewCertPool()
+		for _, file := range files {
+			if !file.IsDir() {
+				filename := filepath.Join(s.caPath, file.Name())
+				certData, err := os.ReadFile(filename)
+				if err != nil {
+					return status.Errorf(codes.InvalidArgument, "tpm: could not read cert data for '%s': %v", filename, err)
+				}
+
+				ok := roots.AppendCertsFromPEM(certData)
+				if ok {
+					continue
+				}
+
+				root, err := x509.ParseCertificate(certData)
+				if err == nil {
+					roots.AddCert(root)
+					continue
+				}
+
+				return status.Errorf(codes.InvalidArgument, "tpm: could not parse cert data for '%s': %v", filename, err)
+			}
+		}
+
+		opts := x509.VerifyOptions{Roots: roots}
+		if _, err = ek.Certificate.Verify(opts); err != nil {
+			return fmt.Errorf("tpm: could not verify cert: %v", err)
+		}
+		validEK = true
+	}
+
+	if !validEK {
+		return fmt.Errorf("tpm: could not validate EK")
+	}
+
+	return nil
+}
+
+func (s *FileNodeStore) Configure(cfg *configv1.CoreConfiguration, hclCfg string) (*Config, error) {
+	config, err := buildConfig(cfg, hclCfg)
 	if err != nil {
 		return nil, err
 	}
+	s.caPath = config.CaPath
+	s.hashPath = config.HashPath
 
-	p.config = config
+	return config, nil
+}
+
+func (s *FileNodeStore) Validate(cfg *configv1.CoreConfiguration, hclCfg string) error {
+	_, err := buildConfig(cfg, hclCfg)
+	return err
+}
+
+func New(ns NodeStore) *Plugin {
+	return &Plugin{ns: ns}
+}
+
+func NewFromConfig(config *Config) *Plugin {
+	return &Plugin{
+		config: config,
+		ns: &FileNodeStore{
+			caPath:   config.CaPath,
+			hashPath: config.HashPath,
+		},
+	}
+}
+
+func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
+	cfg, err := p.ns.Configure(req.GetCoreConfiguration(), req.GetHclConfiguration())
+	if err != nil {
+		return nil, err
+	}
+	p.config = cfg
 
 	return &configv1.ConfigureResponse{}, nil
 }
 
 func (p *Plugin) Validate(_ context.Context, req *configv1.ValidateRequest) (*configv1.ValidateResponse, error) {
-	_, err := buildConfig(req.GetCoreConfiguration(), req.GetHclConfiguration())
+	err := p.ns.Validate(req.GetCoreConfiguration(), req.GetHclConfiguration())
 
 	var notes []string
 	if err != nil {
@@ -156,62 +248,13 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 		return err
 	}
 
+	if err := p.ns.Verify(stream.Context(), ek); err != nil {
+		return err
+	}
+
 	hashEncoded, err := common.GetPubHash(ek)
 	if err != nil {
 		return status.Errorf(codes.InvalidArgument, "tpm: could not get public key hash: %v", err)
-	}
-
-	validEK := false
-
-	if p.config.HashPath != "" {
-		filename := filepath.Join(p.config.HashPath, hashEncoded)
-		if _, err := os.Stat(filename); !os.IsNotExist(err) {
-			validEK = true
-		}
-	}
-
-	if !validEK && p.config.CaPath != "" && ek.Certificate != nil {
-		files, err := os.ReadDir(p.config.CaPath)
-		if err != nil {
-			return status.Errorf(codes.InvalidArgument, "tpm: could not open ca directory: %v", err)
-		}
-
-		roots := x509.NewCertPool()
-		for _, file := range files {
-			if !file.IsDir() {
-				filename := filepath.Join(p.config.CaPath, file.Name())
-				certData, err := os.ReadFile(filename)
-				if err != nil {
-					return status.Errorf(codes.InvalidArgument, "tpm: could not read cert data for '%s': %v", filename, err)
-				}
-
-				ok := roots.AppendCertsFromPEM(certData)
-				if ok {
-					continue
-				}
-
-				root, err := x509.ParseCertificate(certData)
-				if err == nil {
-					roots.AddCert(root)
-					continue
-				}
-
-				return status.Errorf(codes.InvalidArgument, "tpm: could not parse cert data for '%s': %v", filename, err)
-			}
-		}
-
-		opts := x509.VerifyOptions{
-			Roots: roots,
-		}
-		_, err = ek.Certificate.Verify(opts)
-		if err != nil {
-			return fmt.Errorf("tpm: could not verify cert: %v", err)
-		}
-		validEK = true
-	}
-
-	if !validEK {
-		return fmt.Errorf("tpm: could not validate EK")
 	}
 
 	ap := attest.ActivationParameters{
