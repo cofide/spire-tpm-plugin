@@ -167,8 +167,8 @@ func (s *FileNodeStore) Configure(cfg *Config) {
 	s.hashPath = cfg.HashPath
 }
 
-func New() *Plugin {
-	return &Plugin{ns: &FileNodeStore{}}
+func New(ns NodeStore) *Plugin {
+	return &Plugin{ns: ns}
 }
 
 func NewFromConfig(config *Config) *Plugin {

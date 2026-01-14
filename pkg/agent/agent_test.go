@@ -305,7 +305,7 @@ func loadAgentPlugin(t *testing.T, tpm *attest.TPM) agentnodeattestorv1.NodeAtte
 
 func loadServerPlugin(t *testing.T, hclConfig string) servernodeattestorv1.NodeAttestorClient {
 	// load up the fake server-side node attestor
-	p := server.New()
+	p := server.New(&server.FileNodeStore{})
 
 	nodeAttestorClient := new(servernodeattestorv1.NodeAttestorPluginClient)
 	configClient := new(configv1.ConfigServiceClient)
