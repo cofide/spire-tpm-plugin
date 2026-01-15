@@ -88,9 +88,9 @@ func buildConfig(coreConfig *configv1.CoreConfiguration, hclText string) (*Confi
 type Plugin struct {
 	nodeattestorv1.UnsafeNodeAttestorServer
 	configv1.UnsafeConfigServer
-	config *Config
-	m      sync.Mutex
-	ns     NodeStore
+	config    *Config
+	m         sync.Mutex
+	NodeStore NodeStore
 }
 
 type NodeStore interface {
@@ -180,13 +180,13 @@ func (s *FileNodeStore) Validate(cfg *configv1.CoreConfiguration, hclCfg string)
 }
 
 func New(ns NodeStore) *Plugin {
-	return &Plugin{ns: ns}
+	return &Plugin{NodeStore: ns}
 }
 
 func NewFromConfig(config *Config) *Plugin {
 	return &Plugin{
 		config: config,
-		ns: &FileNodeStore{
+		NodeStore: &FileNodeStore{
 			caPath:   config.CaPath,
 			hashPath: config.HashPath,
 		},
@@ -194,7 +194,7 @@ func NewFromConfig(config *Config) *Plugin {
 }
 
 func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
-	cfg, err := p.ns.Configure(req.GetCoreConfiguration(), req.GetHclConfiguration())
+	cfg, err := p.NodeStore.Configure(req.GetCoreConfiguration(), req.GetHclConfiguration())
 	if err != nil {
 		return nil, err
 	}
@@ -204,7 +204,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 }
 
 func (p *Plugin) Validate(_ context.Context, req *configv1.ValidateRequest) (*configv1.ValidateResponse, error) {
-	err := p.ns.Validate(req.GetCoreConfiguration(), req.GetHclConfiguration())
+	err := p.NodeStore.Validate(req.GetCoreConfiguration(), req.GetHclConfiguration())
 
 	var notes []string
 	if err != nil {
@@ -248,7 +248,7 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 		return err
 	}
 
-	if err := p.ns.Attest(stream.Context(), ek); err != nil {
+	if err := p.NodeStore.Attest(stream.Context(), ek); err != nil {
 		return err
 	}
 

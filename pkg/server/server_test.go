@@ -33,7 +33,7 @@ func TestNodeStore_Attest_Success(t *testing.T) {
 	}
 	p := NewFromConfig(config)
 
-	err = p.ns.Attest(context.Background(), ekWrapper)
+	err = p.NodeStore.Attest(context.Background(), ekWrapper)
 	assert.NoError(t, err, "NodeStore should validate the EK against the file on disk")
 }
 
@@ -46,7 +46,7 @@ func TestNodeStore_Attest_Failure(t *testing.T) {
 		HashPath:    t.TempDir(),
 	})
 
-	err := p.ns.Attest(context.Background(), ekWrapper)
+	err := p.NodeStore.Attest(context.Background(), ekWrapper)
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "could not validate EK")
