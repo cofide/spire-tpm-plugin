@@ -194,6 +194,9 @@ func NewFromConfig(config *Config) *Plugin {
 }
 
 func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
+	p.m.Lock()
+	defer p.m.Unlock()
+
 	cfg, err := p.NodeStore.Configure(req.GetCoreConfiguration(), req.GetHclConfiguration())
 	if err != nil {
 		return nil, err
@@ -204,6 +207,9 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 }
 
 func (p *Plugin) Validate(_ context.Context, req *configv1.ValidateRequest) (*configv1.ValidateResponse, error) {
+	p.m.Lock()
+	defer p.m.Unlock()
+
 	err := p.NodeStore.Validate(req.GetCoreConfiguration(), req.GetHclConfiguration())
 
 	var notes []string
@@ -218,6 +224,9 @@ func (p *Plugin) Validate(_ context.Context, req *configv1.ValidateRequest) (*co
 }
 
 func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
+	p.m.Lock()
+	defer p.m.Unlock()
+
 	if p.config == nil {
 		return errors.New("plugin not configured")
 	}
