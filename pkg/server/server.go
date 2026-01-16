@@ -80,7 +80,7 @@ func buildConfig(coreConfig *configv1.CoreConfiguration, hclText string) (*Confi
 		return nil, status.Errorf(codes.InvalidArgument, "either ca_path, hash_path, or both are required")
 	}
 
-	config.trustDomain = coreConfig.TrustDomain
+	config.TrustDomain = coreConfig.TrustDomain
 	return config, nil
 }
 
@@ -308,7 +308,7 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 	return stream.Send(&nodeattestorv1.AttestResponse{
 		Response: &nodeattestorv1.AttestResponse_AgentAttributes{
 			AgentAttributes: &nodeattestorv1.AgentAttributes{
-				SpiffeId:       common.AgentID(p.config.trustDomain, hashEncoded),
+				SpiffeId:       common.AgentID(p.config.TrustDomain, hashEncoded),
 				SelectorValues: buildSelectors(hashEncoded),
 				CanReattest:    true,
 			},

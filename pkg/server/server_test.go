@@ -28,7 +28,7 @@ func TestNodeStore_Attest_Success(t *testing.T) {
 	require.NoError(t, err)
 
 	config := &Config{
-		trustDomain: "example.org",
+		TrustDomain: "example.org",
 		HashPath:    tmpDir,
 	}
 	p := NewFromConfig(config)
@@ -42,7 +42,7 @@ func TestNodeStore_Attest_Failure(t *testing.T) {
 	ekWrapper := &attest.EK{Public: &key.PublicKey}
 
 	p := NewFromConfig(&Config{
-		trustDomain: "example.org",
+		TrustDomain: "example.org",
 		HashPath:    t.TempDir(),
 	})
 
