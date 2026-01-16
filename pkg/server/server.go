@@ -86,9 +86,15 @@ type Plugin struct {
 }
 
 type NodeStore interface {
-	Attest(ctx context.Context, ek *attest.EK) error
+	Attest(ctx context.Context, ek *attest.EK) (NodeMeta, error)
 	Configure(string) (*Config, error)
 	Validate(string) error
+}
+
+// NodeMeta defines metadata about a node in a node store.
+type NodeMeta struct {
+	// SelectorValues is a slice of additional node selector values to use for the node.
+	SelectorValues []string
 }
 
 type FileNodeStore struct {
@@ -96,10 +102,10 @@ type FileNodeStore struct {
 	hashPath string
 }
 
-func (s *FileNodeStore) Attest(ctx context.Context, ek *attest.EK) error {
+func (s *FileNodeStore) Attest(ctx context.Context, ek *attest.EK) (NodeMeta, error) {
 	hashEncoded, err := common.GetPubHash(ek)
 	if err != nil {
-		return status.Errorf(codes.InvalidArgument, "tpm: could not get public key hash: %v", err)
+		return NodeMeta{}, status.Errorf(codes.InvalidArgument, "tpm: could not get public key hash: %v", err)
 	}
 
 	validEK := false
@@ -114,7 +120,7 @@ func (s *FileNodeStore) Attest(ctx context.Context, ek *attest.EK) error {
 	if !validEK && s.caPath != "" && ek.Certificate != nil {
 		files, err := os.ReadDir(s.caPath)
 		if err != nil {
-			return status.Errorf(codes.InvalidArgument, "tpm: could not open ca directory: %v", err)
+			return NodeMeta{}, status.Errorf(codes.InvalidArgument, "tpm: could not open ca directory: %v", err)
 		}
 
 		roots := x509.NewCertPool()
@@ -123,7 +129,7 @@ func (s *FileNodeStore) Attest(ctx context.Context, ek *attest.EK) error {
 				filename := filepath.Join(s.caPath, file.Name())
 				certData, err := os.ReadFile(filename)
 				if err != nil {
-					return status.Errorf(codes.InvalidArgument, "tpm: could not read cert data for '%s': %v", filename, err)
+					return NodeMeta{}, status.Errorf(codes.InvalidArgument, "tpm: could not read cert data for '%s': %v", filename, err)
 				}
 
 				ok := roots.AppendCertsFromPEM(certData)
@@ -137,22 +143,22 @@ func (s *FileNodeStore) Attest(ctx context.Context, ek *attest.EK) error {
 					continue
 				}
 
-				return status.Errorf(codes.InvalidArgument, "tpm: could not parse cert data for '%s': %v", filename, err)
+				return NodeMeta{}, status.Errorf(codes.InvalidArgument, "tpm: could not parse cert data for '%s': %v", filename, err)
 			}
 		}
 
 		opts := x509.VerifyOptions{Roots: roots}
 		if _, err = ek.Certificate.Verify(opts); err != nil {
-			return fmt.Errorf("tpm: could not verify cert: %v", err)
+			return NodeMeta{}, fmt.Errorf("tpm: could not verify cert: %v", err)
 		}
 		validEK = true
 	}
 
 	if !validEK {
-		return fmt.Errorf("tpm: could not validate EK")
+		return NodeMeta{}, fmt.Errorf("tpm: could not validate EK")
 	}
 
-	return nil
+	return NodeMeta{}, nil
 }
 
 func (s *FileNodeStore) Configure(hclCfg string) (*Config, error) {
@@ -249,7 +255,8 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 		return err
 	}
 
-	if err := p.ns.Attest(stream.Context(), ek); err != nil {
+	nodeMeta, err := p.ns.Attest(stream.Context(), ek)
+	if err != nil {
 		return err
 	}
 
@@ -304,7 +311,7 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 		Response: &nodeattestorv1.AttestResponse_AgentAttributes{
 			AgentAttributes: &nodeattestorv1.AgentAttributes{
 				SpiffeId:       common.AgentID(p.config.trustDomain, hashEncoded),
-				SelectorValues: buildSelectors(hashEncoded),
+				SelectorValues: append(buildSelectors(hashEncoded), nodeMeta.SelectorValues...),
 				CanReattest:    true,
 			},
 		},
