@@ -199,6 +199,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		return nil, err
 	}
 	p.config = cfg
+	p.config.trustDomain = req.CoreConfiguration.GetTrustDomain()
 
 	return &configv1.ConfigureResponse{}, nil
 }
