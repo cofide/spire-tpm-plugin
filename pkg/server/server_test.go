@@ -24,7 +24,7 @@ func TestNodeStore_Attest_Success(t *testing.T) {
 	hashEncoded, err := common.GetPubHash(ekWrapper)
 	require.NoError(t, err)
 
-	err = os.WriteFile(filepath.Join(tmpDir, hashEncoded), []byte{}, 0644)
+	err = os.WriteFile(filepath.Join(tmpDir, hashEncoded), []byte{}, 0o644)
 	require.NoError(t, err)
 
 	config := &Config{
@@ -33,8 +33,9 @@ func TestNodeStore_Attest_Success(t *testing.T) {
 	}
 	p := NewFromConfig(config)
 
-	err = p.ns.Attest(context.Background(), ekWrapper)
+	nodeMeta, err := p.ns.Attest(context.Background(), ekWrapper)
 	assert.NoError(t, err, "NodeStore should validate the EK against the file on disk")
+	assert.Empty(t, nodeMeta.SelectorValues)
 }
 
 func TestNodeStore_Attest_Failure(t *testing.T) {
@@ -46,8 +47,9 @@ func TestNodeStore_Attest_Failure(t *testing.T) {
 		HashPath:    t.TempDir(),
 	})
 
-	err := p.ns.Attest(context.Background(), ekWrapper)
+	nodeMeta, err := p.ns.Attest(context.Background(), ekWrapper)
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "could not validate EK")
+	assert.Empty(t, nodeMeta.SelectorValues)
 }
