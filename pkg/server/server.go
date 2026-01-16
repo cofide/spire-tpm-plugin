@@ -37,7 +37,7 @@ import (
 )
 
 type Config struct {
-	trustDomain string
+	TrustDomain string
 	CaPath      string `hcl:"ca_path"`
 	HashPath    string `hcl:"hash_path"`
 }
