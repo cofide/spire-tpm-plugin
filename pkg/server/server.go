@@ -224,9 +224,6 @@ func (p *Plugin) Validate(_ context.Context, req *configv1.ValidateRequest) (*co
 }
 
 func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
-	p.m.Lock()
-	defer p.m.Unlock()
-
 	if p.config == nil {
 		return errors.New("plugin not configured")
 	}
