@@ -37,7 +37,7 @@ import (
 )
 
 type Config struct {
-	TrustDomain string
+	trustDomain string
 	CaPath      string `hcl:"ca_path"`
 	HashPath    string `hcl:"hash_path"`
 }
@@ -80,7 +80,7 @@ func buildConfig(coreConfig *configv1.CoreConfiguration, hclText string) (*Confi
 		return nil, status.Errorf(codes.InvalidArgument, "either ca_path, hash_path, or both are required")
 	}
 
-	config.TrustDomain = coreConfig.TrustDomain
+	config.trustDomain = coreConfig.TrustDomain
 	return config, nil
 }
 
@@ -308,7 +308,7 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 	return stream.Send(&nodeattestorv1.AttestResponse{
 		Response: &nodeattestorv1.AttestResponse_AgentAttributes{
 			AgentAttributes: &nodeattestorv1.AgentAttributes{
-				SpiffeId:       common.AgentID(p.config.TrustDomain, hashEncoded),
+				SpiffeId:       common.AgentID(p.config.trustDomain, hashEncoded),
 				SelectorValues: buildSelectors(hashEncoded),
 				CanReattest:    true,
 			},
