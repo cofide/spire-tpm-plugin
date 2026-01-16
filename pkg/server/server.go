@@ -80,7 +80,6 @@ func buildConfig(coreConfig *configv1.CoreConfiguration, hclText string) (*Confi
 		return nil, status.Errorf(codes.InvalidArgument, "either ca_path, hash_path, or both are required")
 	}
 
-	config.trustDomain = coreConfig.TrustDomain
 	return config, nil
 }
 
