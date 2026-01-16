@@ -42,17 +42,10 @@ type Config struct {
 	HashPath    string `hcl:"hash_path"`
 }
 
-func buildConfig(coreConfig *configv1.CoreConfiguration, hclText string) (*Config, error) {
+func buildConfig(hclText string) (*Config, error) {
 	config := &Config{}
 	if err := hcl.Decode(config, hclText); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "failed to decode configuration file: %v", err)
-	}
-
-	if coreConfig == nil {
-		return nil, status.Errorf(codes.InvalidArgument, "global configuration is required")
-	}
-	if coreConfig.TrustDomain == "" {
-		return nil, status.Errorf(codes.InvalidArgument, "trust_domain is required")
 	}
 
 	if config.CaPath != "" {
@@ -94,8 +87,8 @@ type Plugin struct {
 
 type NodeStore interface {
 	Attest(ctx context.Context, ek *attest.EK) error
-	Configure(*configv1.CoreConfiguration, string) (*Config, error)
-	Validate(*configv1.CoreConfiguration, string) error
+	Configure(string) (*Config, error)
+	Validate(string) error
 }
 
 type FileNodeStore struct {
@@ -162,8 +155,8 @@ func (s *FileNodeStore) Attest(ctx context.Context, ek *attest.EK) error {
 	return nil
 }
 
-func (s *FileNodeStore) Configure(cfg *configv1.CoreConfiguration, hclCfg string) (*Config, error) {
-	config, err := buildConfig(cfg, hclCfg)
+func (s *FileNodeStore) Configure(hclCfg string) (*Config, error) {
+	config, err := buildConfig(hclCfg)
 	if err != nil {
 		return nil, err
 	}
@@ -173,8 +166,8 @@ func (s *FileNodeStore) Configure(cfg *configv1.CoreConfiguration, hclCfg string
 	return config, nil
 }
 
-func (s *FileNodeStore) Validate(cfg *configv1.CoreConfiguration, hclCfg string) error {
-	_, err := buildConfig(cfg, hclCfg)
+func (s *FileNodeStore) Validate(hclCfg string) error {
+	_, err := buildConfig(hclCfg)
 	return err
 }
 
@@ -193,18 +186,26 @@ func NewFromConfig(config *Config) *Plugin {
 }
 
 func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
-	cfg, err := p.ns.Configure(req.GetCoreConfiguration(), req.GetHclConfiguration())
+	cfg, err := p.ns.Configure(req.GetHclConfiguration())
 	if err != nil {
 		return nil, err
 	}
 	p.config = cfg
+
+	if req.CoreConfiguration == nil {
+		return nil, status.Errorf(codes.FailedPrecondition, "tpm: core configuration not set")
+	}
+
+	if req.CoreConfiguration.GetTrustDomain() == "" {
+		return nil, status.Errorf(codes.FailedPrecondition, "tpm: trust domain is not set")
+	}
 	p.config.trustDomain = req.CoreConfiguration.GetTrustDomain()
 
 	return &configv1.ConfigureResponse{}, nil
 }
 
 func (p *Plugin) Validate(_ context.Context, req *configv1.ValidateRequest) (*configv1.ValidateResponse, error) {
-	err := p.ns.Validate(req.GetCoreConfiguration(), req.GetHclConfiguration())
+	err := p.ns.Validate(req.GetHclConfiguration())
 
 	var notes []string
 	if err != nil {
