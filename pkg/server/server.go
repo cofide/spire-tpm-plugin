@@ -51,9 +51,6 @@ func buildConfig(coreConfig *configv1.CoreConfiguration, hclText string) (*Confi
 	if coreConfig == nil {
 		return nil, status.Errorf(codes.InvalidArgument, "global configuration is required")
 	}
-	if coreConfig.TrustDomain == "" {
-		return nil, status.Errorf(codes.InvalidArgument, "trust_domain is required")
-	}
 
 	if config.CaPath != "" {
 		if _, err := os.Stat(config.CaPath); os.IsNotExist(err) {
@@ -198,6 +195,10 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		return nil, err
 	}
 	p.config = cfg
+
+	if req.CoreConfiguration.GetTrustDomain() == "" {
+		return nil, status.Errorf(codes.FailedPrecondition, "tpm: trust domain is not set")
+	}
 	p.config.trustDomain = req.CoreConfiguration.GetTrustDomain()
 
 	return &configv1.ConfigureResponse{}, nil
